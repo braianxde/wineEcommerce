@@ -1,0 +1,17 @@
+php_value memory_limit -1
+php_value upload_max_filesize 512M
+php_value post_max_size 512M
+php_value max_input_vars 10000
+Options -Indexes -ExecCGI -Includes
+
+<FilesMatch "\.json$|\.inc$|\.sql$|\.ini$|\.ipy$|\.lic$|\.txt$|\.so$|\.po$">
+	Require all denied
+	Deny from all
+</FilesMatch>
+
+RewriteEngine on
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php
+RewriteRule \.(git|svn)(/.*)?$ - [F,NC]

@@ -1,116 +1,103 @@
 <?php
+
 namespace Controller;
+require_once 'bootstrap.php';
+require_once "Entity/Product.php";
+
 use Common\dbWine;
+use Doctrine\ORM\EntityManagerInterface;
+use Product;
 
 class ProductController {
     private $db;
+    private $entityManager;
 
-    public function __construct() {
+    public function __construct(EntityManagerInterface $entityManager) {
         $this->db = new dbWine();
+        $this->entityManager = $entityManager;
     }
 
-    public function getProducts(){
+    public function getProducts() {
         try {
-            $products = [];
-            $sql = "SELECT * FROM product";
-            $ret = $this->db->query($sql);
+            $products = $this->entityManager->getRepository(Product::class)->findAll();
+            $results = [];
 
-            while($row = $ret->fetchArray(SQLITE3_ASSOC) ) {
-                $products[] = $row;
+            if (empty($products)) {
+                throw new \Exception("No products found");
             }
 
-            $this->db->close();
+            foreach ($products as $product) {
+                $results[] = [
+                    'id' => $product->getId(),
+                    'name' => $product->getName(),
+                    'value' => $product->getValue(),
+                    'description' => $product->getDescription(),
+                    'weight' => $product->getWeight(),
+                    'ordination' => $product->getOrdination(),
+                ];
+            }
 
-            return json_encode(
-                [
-                    "success" => true,
-                    "products" => $products
-                ]
-            );
+            return [
+                "success" => true,
+                "data" => $results
+            ];
 
         } catch (\Exception $exception){
-
-            $this->db->close();
-
-            return json_encode(
-                [
-                    "success" => false,
-                    "msg" => $exception->getMessage()
-                ]
-            );
+            return [
+                "success" => false,
+                "msg" => $exception->getMessage()
+            ];
         }
     }
 
-    public function insertProduct($newProduct){
+    public function insertProduct($newProduct) {
         try {
-            $sql = "INSERT INTO product (
-                    'description',
-                    'name',
-                    'value',
-                    'img',
-                    'weight',
-                    'order'
-                ) VALUES (
-                    '{$newProduct["description"]}',
-                    '{$newProduct["name"]}',
-                    '{$newProduct["value"]}',
-                    '{$newProduct["img"]}',
-                    '{$newProduct["weight"]}',
-                    '{$newProduct["order"]}'
-                );";
+            $product = new Product();
+            $product->setName($newProduct["name"]);
+            $product->setDescription($newProduct["description"]);
+            $product->setImg($newProduct["img"]);
+            $product->setOrdination($newProduct["ordination"]);
+            $product->setValue($newProduct["value"]);
+            $product->setWeight($newProduct["weight"]);
 
-            $this->db->exec($sql);
-            $this->db->close();
+            $this->entityManager->persist($product);
+            $this->entityManager->flush();
 
-            return json_encode(
-                [
-                    "success" => true
-                ]
-            );
-
+            return [
+                "success" => true
+            ];
         } catch (\Exception $exception){
-            $this->db->close();
-
-            return json_encode(
-                [
-                    "success" => false,
-                    "msg" => $exception->getMessage()
-                ]
-            );
+            return [
+                "success" => false,
+                "msg" => $exception->getMessage()
+            ];
         }
     }
 
-    public function getProductById($id){
+    public function getProductById($id) {
         try {
-            $sql = "SELECT * FROM product WHERE id = {$id}";
-            $products = $this->db->query($sql)->fetchArray(SQLITE3_ASSOC);
-            $this->db->close();
+            $product = $this->entityManager->find('Product', $id);
 
-
-            if($products){
-                return json_encode(
-                    [
-                        "success" => true,
-                        "products" => $products
-                    ]
-                );
+            if (empty($product)) {
+                throw new \Exception("No product found");
             }
 
-            return json_encode(
-                [
-                    "success" => false,
-                ]
-            );
+            $result[] = [
+                'id' => $product->getId(),
+                'name' => $product->getName(),
+                'value' => $product->getValue(),
+                'description' => $product->getDescription(),
+                'weight' => $product->getWeight(),
+                'ordination' => $product->getOrdination(),
+            ];
+
+            return $result;
 
         } catch (\Exception $exception){
-            $this->db->close();
-
-            return json_encode(
-                [
-                    "success" => false,
-                    "msg" => $exception->getMessage()
-                ]
-            );
+            return [
+                "success" => false,
+                "msg" => $exception->getMessage()
+            ];
         }
     }
 }

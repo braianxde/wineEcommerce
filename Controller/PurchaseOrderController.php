@@ -1,124 +1,109 @@
 <?php
 
 namespace Controller;
+
+require_once "Entity/PurchaseOrder.php";
+require_once "Entity/ItemOrder.php";
+
 use Common\dbWine;
+use Doctrine\ORM\EntityManagerInterface;
+use ItemOrder;
+use PurchaseOrder;
 
 class PurchaseOrderController {
     private $db;
+    private $entityManager;
 
-    public function __construct() {
+    public function __construct(EntityManagerInterface $entityManager) {
         $this->db = new dbWine();
+        $this->entityManager = $entityManager;
     }
 
     public function getPurchaseOrders() {
         try {
-            $sql = "SELECT * FROM purchase_order";
-            $purchase_orders = $this->db->query($sql)->fetchArray(SQLITE3_ASSOC);
-            $this->db->close();
+            $purchaseOrders = $this->entityManager->getRepository(PurchaseOrder::class)->findAll();
+            $results = [];
 
-            return json_encode(
-                [
-                    "status" => true,
-                    "purchase_order" => $purchase_orders
-                ]
-            );
+            if (empty($purchaseOrders)) {
+                throw new \Exception("No purchase orders found");
+            }
+
+            foreach ($purchaseOrders as $purchaseOrder) {
+                $results[] = [
+                    'id' => $purchaseOrder->getId(),
+                    'datetime' => $purchaseOrder->getDatetime(),
+                    'number_items' => $purchaseOrder->getNumberItems(),
+                    'amount_value' => $purchaseOrder->getAmountValue(),
+                    'amount_weight' => $purchaseOrder->getAmountWeight(),
+                    'distance' => $purchaseOrder->getDistance(),
+                ];
+            }
+
+            return [
+                "success" => true,
+                "data" => $results
+            ];
 
         } catch (\Exception $exception) {
-
-            return json_encode(
-                [
-                    "status" => false,
-                    "msg" => $exception->getMessage()
-                ]
-            );
+            return [
+                "success" => false,
+                "msg" => $exception->getMessage()
+            ];
         }
     }
 
     public function calculateAndInsertPurchaseOrder($purchaseOrder) {
-        try {
+        foreach ($purchaseOrder["items"] as $item) {
+            $amountWeight = $item["weight"];
+            $amountValue = $item["value"];
+        }
 
-            foreach($purchaseOrder["items"] as $item){
-                $amountWeight = $item["weight"];
-                $amountValue = $item["value"];
-            }
+        $shipping = $this->calculateShipping($amountWeight, $purchaseOrder["distance"]);
+        $numberItems = count($purchaseOrder["items"]);
 
-            $shipping = $this->calculateShipping($amountWeight, $purchaseOrder["distance"]);
-            $numberItems = count($purchaseOrder["items"]);
+        if ($amountValue <= 0 && $amountWeight <= 0 && $numberItems <= 0 && $shipping <= 0) {
+            throw new \Exception("Something goes wrong");
+        }
 
-            if($amountValue <= 0 && $amountWeight <= 0 && $numberItems <= 0 && $shipping <= 0){
-                throw new \Exception("Something goes wrong");
-            }
+        $idPurchaseOrder = $this->insertPurchaseOrderAndGetIdInsert($amountWeight, $amountValue, $shipping, $numberItems, $purchaseOrder["distance"]);
 
-            $idPurchaseOrder = $this->insertPurchaseOrderAndGetIdInsert($amountWeight, $amountValue, $shipping, $numberItems, $purchaseOrder["distance"]);
+        $this->insertItemsOrder($idPurchaseOrder, $purchaseOrder["items"]);
 
-            $this->insertItemsOrder($idPurchaseOrder, $purchaseOrder["items"]);
+    }
 
-            return json_encode(
-                [
-                    "status" => true
-                ]
-            );
+    public function insertItemsOrder($idPurchaseOrder, $items) {
+        foreach ($items as $item) {
+            $itemOrder = new ItemOrder();
+            $itemOrder->setWeight($item["weight"]);
+            $itemOrder->setValue($item["value"]);
+            $itemOrder->setIdProduct($item["id"]);
+            $itemOrder->setIdPurchase($idPurchaseOrder);
 
-        } catch (\Exception $exception) {
-
-            return json_encode(
-                [
-                    "status" => false,
-                    "msg" => $exception->getMessage()
-                ]
-            );
+            $this->entityManager->persist($itemOrder);
+            $this->entityManager->flush();
         }
     }
 
-    public function insertItemsOrder($idPurchaseOrder, $items){
-        foreach($items as $item){
-            $sql = "INSERT INTO item_order (
-                    'id_product',
-                    'id_purchase',
-                    'value',
-                    'weight'
-                ) VALUES (
-                    '{$item["id"]}',
-                    '{$idPurchaseOrder}',
-                    '{$item["value"]}',
-                    '{$item["weight"]}'
-                );";
-
-            $this->db->exec($sql);
-        }
-
-        $this->db->close();
-    }
-
-    public function insertPurchaseOrderAndGetIdInsert($amountWeight, $amountValue, $shipping, $numberItems, $distance){
+    public function insertPurchaseOrderAndGetIdInsert($amountWeight, $amountValue, $shipping, $numberItems, $distance) {
         $datetimeNow = date("Y-m-d h:i:s");
 
-        $sql = "INSERT INTO purchase_order (
-                    'datetime',
-                    'number_items',
-                    'amount_value',
-                    'amount_weight',
-                    'shipping_cost',
-                    'distance'
-                ) VALUES (
-                    '{$datetimeNow}',
-                    '{$numberItems}',
-                    '{$amountValue}',
-                    '{$amountWeight}',
-                    '{$shipping}',
-                    '{$distance}'
-                );";
+        $purchaseOrder = new PurchaseOrder();
+        $purchaseOrder->setAmountValue($amountValue);
+        $purchaseOrder->setAmountWeight($amountWeight);
+        $purchaseOrder->setDatetime($datetimeNow);
+        $purchaseOrder->setDistance($distance);
+        $purchaseOrder->setNumberItems($numberItems);
 
-        $this->db->exec($sql);
-        $idPurchaseOrder = $this->db->lastInsertRowID();
+        $this->entityManager->persist($purchaseOrder);
+        $this->entityManager->flush();
 
-        return $idPurchaseOrder;
+        return $purchaseOrder->getId();
     }
 
-    public function calculateShipping($amountWeight, $distance){
+    public function calculateShipping($amountWeight, $distance) {
         $valueShipping = $amountWeight * 5;
 
-        if($distance <= 100){
+        if ($distance <= 100) {
             return $valueShipping;
         }
 
@@ -127,25 +112,31 @@ class PurchaseOrderController {
 
     public function getPurchaseOrderById($id) {
         try {
-            $sql = "SELECT * FROM purchase_order WHERE id = {$id}";
+            $purchaseOrder = $this->entityManager->find('PurchaseOrder', $id);
 
-            $products = $this->db->query($sql)->fetchArray(SQLITE3_ASSOC);
-            $this->db->close();
+            if (empty($purchaseOrder)) {
+                throw new \Exception("No purchase order found");
+            }
 
-            return json_encode(
-                [
-                    "status" => true,
-                    "purchase_order" => $products
-                ]
-            );
+            $result[] = [
+                'id' => $purchaseOrder->getId(),
+                'datetime' => $purchaseOrder->getDatetime(),
+                'number_items' => $purchaseOrder->getNumberItems(),
+                'amount_value' => $purchaseOrder->getAmountValue(),
+                'amount_weight' => $purchaseOrder->getAmountWeight(),
+                'distance' => $purchaseOrder->getDistance()
+            ];
+
+            return [
+                "success" => true,
+                "data" => $result
+            ];
+
         } catch (\Exception $exception) {
-
-            return json_encode(
-                [
-                    "status" => false,
-                    "msg" => $exception->getMessage()
-                ]
-            );
+            return [
+                "success" => false,
+                "msg" => $exception->getMessage()
+            ];
         }
     }
 }

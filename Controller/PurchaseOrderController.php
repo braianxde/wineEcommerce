@@ -53,22 +53,33 @@ class PurchaseOrderController {
     }
 
     public function calculateAndInsertPurchaseOrder($purchaseOrder) {
-        foreach ($purchaseOrder["items"] as $item) {
-            $amountWeight = $item["weight"];
-            $amountValue = $item["value"];
+        try {
+            foreach ($purchaseOrder["items"] as $item) {
+                $amountWeight = $item["weight"];
+                $amountValue = $item["value"];
+            }
+
+            $shipping = $this->calculateShipping($amountWeight, $purchaseOrder["distance"]);
+            $numberItems = count($purchaseOrder["items"]);
+
+            if ($amountValue <= 0 && $amountWeight <= 0 && $numberItems <= 0 && $shipping <= 0) {
+                throw new \Exception("Something goes wrong");
+            }
+
+            $idPurchaseOrder = $this->insertPurchaseOrderAndGetIdInsert($amountWeight, $amountValue, $shipping, $numberItems, $purchaseOrder["distance"]);
+
+            $this->insertItemsOrder($idPurchaseOrder, $purchaseOrder["items"]);
+
+            return [
+                "success" => true
+            ];
+
+        } catch (\Exception $exception) {
+            return [
+                "success" => false,
+                "msg" => $exception->getMessage()
+            ];
         }
-
-        $shipping = $this->calculateShipping($amountWeight, $purchaseOrder["distance"]);
-        $numberItems = count($purchaseOrder["items"]);
-
-        if ($amountValue <= 0 && $amountWeight <= 0 && $numberItems <= 0 && $shipping <= 0) {
-            throw new \Exception("Something goes wrong");
-        }
-
-        $idPurchaseOrder = $this->insertPurchaseOrderAndGetIdInsert($amountWeight, $amountValue, $shipping, $numberItems, $purchaseOrder["distance"]);
-
-        $this->insertItemsOrder($idPurchaseOrder, $purchaseOrder["items"]);
-
     }
 
     public function insertItemsOrder($idPurchaseOrder, $items) {

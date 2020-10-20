@@ -34,6 +34,7 @@ class ProductController {
                     'description' => $product->getDescription(),
                     'weight' => $product->getWeight(),
                     'ordination' => $product->getOrdination(),
+                    'img' => $product->getImg(),
                 ];
             }
 
@@ -89,9 +90,13 @@ class ProductController {
                 'description' => $product->getDescription(),
                 'weight' => $product->getWeight(),
                 'ordination' => $product->getOrdination(),
+                'img' => $product->getImg(),
             ];
 
-            return $result;
+            return [
+                "success" => true,
+                "data" => $result
+            ];
 
         } catch (\Exception $exception){
             return [

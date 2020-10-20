@@ -55,8 +55,8 @@ class PurchaseOrderController {
     public function calculateAndInsertPurchaseOrder($purchaseOrder) {
         try {
             foreach ($purchaseOrder["items"] as $item) {
-                $amountWeight = $item["weight"];
-                $amountValue = $item["value"];
+                $amountWeight += $item["weight"];
+                $amountValue += $item["value"];
             }
 
             $shipping = $this->calculateShipping($amountWeight, $purchaseOrder["distance"]);
@@ -99,7 +99,7 @@ class PurchaseOrderController {
         $datetimeNow = date("Y-m-d h:i:s");
 
         $purchaseOrder = new PurchaseOrder();
-        $purchaseOrder->setAmountValue($amountValue);
+        $purchaseOrder->setAmountValue($amountValue + $shipping);
         $purchaseOrder->setAmountWeight($amountWeight);
         $purchaseOrder->setDatetime($datetimeNow);
         $purchaseOrder->setDistance($distance);

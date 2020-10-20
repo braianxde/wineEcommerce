@@ -1,0 +1,23 @@
+{
+    "require": {
+        "klein/klein": "^2.1",
+        "symfony/yaml": "2.*",
+        "ext-sqlite3": "*",
+        "robmorgan/phinx": "^0.12.4",
+        "ext-json": "*",
+        "doctrine/orm": "^2.6.2"
+    },
+    "autoload": {
+        "classmap": [
+            "."
+        ],
+        "psr-0": {
+        },
+        "psr-4": {
+            "Lib\\": "Entity"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^7.5"
+    }
+}
